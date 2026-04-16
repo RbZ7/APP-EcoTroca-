@@ -1,0 +1,542 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  Image,
+  SafeAreaView,
+  Modal,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Dimensions,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width } = Dimensions.get('window');
+const isDesktop = width > 768;
+
+export default function App() {
+  const [tela, setTela] = useState('splash');
+  const [logado, setLogado] = useState(false);
+  const [naTelaDeCadastro, setNaTelaDeCadastro] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState('home');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [usuarioAtual, setUsuarioAtual] = useState(null);
+
+  const [titulo, setTitulo] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [imagem, setImagem] = useState(null);
+  const [lista, setLista] = useState([]);
+
+  const [perfilVisivel, setPerfilVisivel] = useState(false);
+  const [anuncianteSelecionado, setAnuncianteSelecionado] = useState(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setTela('login');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  const carregarDados = async () => {
+    try {
+      const valor = await AsyncStorage.getItem('@itens_save');
+      if (valor !== null) setLista(JSON.parse(valor));
+    } catch (e) {}
+  };
+
+  const cadastrarUsuario = async () => {
+    if (!email || !senha || !telefone) {
+      Alert.alert('Erro', 'Preencha todos os campos.');
+      return;
+    }
+    try {
+      const dadosUser = { email, senha, telefone };
+      await AsyncStorage.setItem(
+        '@usuario_cadastro',
+        JSON.stringify(dadosUser)
+      );
+      Alert.alert('Sucesso', 'Cadastro realizado!');
+      setNaTelaDeCadastro(false);
+    } catch (e) {}
+  };
+
+  const realizarLogin = async () => {
+    try {
+      const dados = await AsyncStorage.getItem('@usuario_cadastro');
+      if (dados === null) {
+        Alert.alert('Atenção', 'Usuário não cadastrado.');
+        return;
+      }
+      const usuario = JSON.parse(dados);
+      if (
+        usuario.email.toLowerCase() === email.toLowerCase() &&
+        usuario.senha === senha
+      ) {
+        setUsuarioAtual(usuario);
+        setLogado(true);
+      } else {
+        Alert.alert('Erro', 'E-mail ou senha incorretos.');
+      }
+    } catch (e) {}
+  };
+
+  const escolherImagem = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+    if (!result.canceled) setImagem(result.assets[0].uri);
+  };
+
+  const adicionarItem = () => {
+    if (!titulo || !descricao) {
+      Alert.alert('Atenção', 'Preencha título e descrição.');
+      return;
+    }
+    const novoItem = {
+      id: Math.random().toString(),
+      titulo,
+      descricao,
+      imagem,
+      usuarioEmail: usuarioAtual.email,
+      usuarioTel: usuarioAtual.telefone,
+    };
+    const novaLista = [novoItem, ...lista];
+    setLista(novaLista);
+    AsyncStorage.setItem('@itens_save', JSON.stringify(novaLista));
+    setTitulo('');
+    setDescricao('');
+    setImagem(null);
+    setAbaAtiva('home');
+  };
+
+  const removerItem = (id) => {
+    const novaLista = lista.filter((item) => item.id !== id);
+    setLista(novaLista);
+    AsyncStorage.setItem('@itens_save', JSON.stringify(novaLista));
+  };
+
+  if (tela === 'splash') {
+    return (
+      <View style={styles.splashContainer}>
+        <Text style={styles.logoSplash}>🌱 EcoTroca</Text>
+        <Text style={styles.subSplash}>Troque • Reutilize • Transforme</Text>
+      </View>
+    );
+  }
+
+  if (!logado) {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1, backgroundColor: '#fff' }}>
+        <ScrollView contentContainerStyle={styles.scrollCenter}>
+          <View style={styles.containerLogin}>
+            <Text style={styles.logo}>🌱 EcoTroca</Text>
+            <Text style={styles.subtituloLogin}>
+              {naTelaDeCadastro ? 'Crie sua conta' : 'Acesse sua conta'}
+            </Text>
+            <TextInput
+              placeholder="E-mail"
+              style={styles.inputLogin}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+            />
+            {naTelaDeCadastro && (
+              <TextInput
+                placeholder="WhatsApp"
+                style={styles.inputLogin}
+                value={telefone}
+                onChangeText={setTelefone}
+                keyboardType="phone-pad"
+              />
+            )}
+            <View style={styles.senhaContainer}>
+              <TextInput
+                placeholder="Senha"
+                style={[
+                  styles.inputLogin,
+                  { flex: 1, marginBottom: 0, borderBottomWidth: 0 },
+                ]}
+                value={senha}
+                onChangeText={setSenha}
+                secureTextEntry={!mostrarSenha}
+              />
+              <TouchableOpacity
+                onPress={() => setMostrarSenha(!mostrarSenha)}
+                style={styles.olhoBotao}>
+                <Text style={styles.olhoTexto}>
+                  {mostrarSenha ? 'Ocultar' : 'Ver'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.buttonLogin}
+              onPress={naTelaDeCadastro ? cadastrarUsuario : realizarLogin}>
+              <Text style={styles.buttonText}>
+                {naTelaDeCadastro ? 'REGISTRAR' : 'ENTRAR'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setNaTelaDeCadastro(!naTelaDeCadastro)}
+              style={{ marginTop: 20 }}>
+              <Text style={styles.linkTexto}>
+                {naTelaDeCadastro ? 'Já tenho conta' : 'Cadastre-se'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.mainWrapper}>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>
+            {abaAtiva === 'home' ? '🏠 Início' : 'Anunciar'}
+          </Text>
+          <TouchableOpacity onPress={() => setLogado(false)}>
+            <Text style={styles.sairTexto}>Sair</Text>
+          </TouchableOpacity>
+        </View>
+
+        {abaAtiva === 'perfil' ? (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : null}
+            style={{ flex: 1 }}>
+            <ScrollView>
+              <View style={styles.cardForm}>
+                <TextInput
+                  placeholder="Título do item"
+                  style={styles.inputAnunciar}
+                  value={titulo}
+                  onChangeText={setTitulo}
+                />
+                <TextInput
+                  placeholder="Descrição detalhada"
+                  style={[styles.inputAnunciar, { minHeight: 80 }]}
+                  value={descricao}
+                  onChangeText={setDescricao}
+                  multiline
+                />
+                <TouchableOpacity
+                  style={styles.btnFotoTracejado}
+                  onPress={escolherImagem}>
+                  <Text style={styles.btnFotoTexto}>
+                    📸 {imagem ? 'Trocar Foto' : 'Selecionar Foto'}
+                  </Text>
+                </TouchableOpacity>
+                {imagem && (
+                  <Image
+                    source={{ uri: imagem }}
+                    style={styles.previewImagem}
+                  />
+                )}
+                <TouchableOpacity
+                  style={styles.btnPublicar}
+                  onPress={adicionarItem}>
+                  <Text style={styles.btnPublicarTexto}>PUBLICAR</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ height: 180 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        ) : (
+          <FlatList
+            data={lista}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 200 }}
+            numColumns={isDesktop ? 2 : 1}
+            key={isDesktop ? 'desktop' : 'mobile'}
+            renderItem={({ item }) => (
+              <View
+                style={[styles.cardItem, isDesktop && { flex: 1, margin: 10 }]}>
+                {item.imagem && (
+                  <Image source={{ uri: item.imagem }} style={styles.cardImg} />
+                )}
+                <View style={styles.cardContent}>
+                  <View style={styles.row}>
+                    <Text style={styles.cardTitle}>{item.titulo}</Text>
+                    {item.usuarioEmail === usuarioAtual.email && (
+                      <TouchableOpacity onPress={() => removerItem(item.id)}>
+                        <Text style={styles.removerBtn}>Remover</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={styles.cardDescricao}>{item.descricao}</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setAnuncianteSelecionado(item);
+                      setPerfilVisivel(true);
+                    }}>
+                    <Text style={styles.cardUser}>
+                      Dono:{' '}
+                      <Text style={styles.linkVerde}>{item.usuarioEmail}</Text>
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.empty}>Nenhum item disponível.</Text>
+            }
+          />
+        )}
+      </View>
+
+      <Modal visible={perfilVisivel} animationType="fade" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalConteudo}>
+            <Text style={styles.modalTitulo}>Contato</Text>
+            <Text style={styles.perfilLabel}>E-mail:</Text>
+            <Text style={styles.perfilDado}>
+              {anuncianteSelecionado?.usuarioEmail}
+            </Text>
+            <Text style={[styles.perfilLabel, { marginTop: 15 }]}>
+              WhatsApp:
+            </Text>
+            <Text style={styles.perfilDado}>
+              {anuncianteSelecionado?.usuarioTel}
+            </Text>
+            <TouchableOpacity
+              style={styles.btnFecharModal}
+              onPress={() => setPerfilVisivel(false)}>
+              <Text style={styles.btnFecharTexto}>Voltar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <View style={styles.tabBarContainer}>
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tabItem, abaAtiva === 'home' && styles.tabAtiva]}
+            onPress={() => setAbaAtiva('home')}>
+            <Text
+              style={
+                abaAtiva === 'home' ? styles.tabTextAtivo : styles.tabText
+              }>
+              🏠 Início
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabItem, abaAtiva === 'perfil' && styles.tabAtiva]}
+            onPress={() => setAbaAtiva('perfil')}>
+            <Text
+              style={
+                abaAtiva === 'perfil' ? styles.tabTextAtivo : styles.tabText
+              }>
+              ➕ Novo
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  logoSplash: { fontSize: 40, fontWeight: 'bold', color: '#2e7d32' },
+  subSplash: { fontSize: 16, color: '#555', marginTop: 10 },
+
+  scrollCenter: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
+  containerLogin: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 30,
+    backgroundColor: '#fff',
+  },
+
+  logo: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+    textAlign: 'center',
+  },
+  subtituloLogin: {
+    textAlign: 'center',
+    color: '#666',
+    marginBottom: 30,
+    fontSize: 16,
+  },
+  inputLogin: {
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 20,
+    padding: 10,
+    fontSize: 16,
+  },
+  senhaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 25,
+  },
+  olhoBotao: { padding: 10 },
+  olhoTexto: { color: '#2e7d32', fontSize: 12, fontWeight: 'bold' },
+  buttonLogin: {
+    backgroundColor: '#2e7d32',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  linkTexto: { color: '#2e7d32', textAlign: 'center', fontWeight: 'bold' },
+
+  container: { flex: 1, backgroundColor: '#f5f5f5', alignItems: 'center' },
+  mainWrapper: { width: '100%', maxWidth: 800, flex: 1 },
+
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginTop: Platform.OS === 'android' ? 45 : 20,
+    marginBottom: 15,
+  },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#1b5e20' },
+  sairTexto: { color: '#d32f2f', fontWeight: 'bold' },
+
+  cardForm: {
+    backgroundColor: '#fff',
+    padding: 20,
+    margin: 20,
+    borderRadius: 15,
+    elevation: 4,
+  },
+  inputAnunciar: {
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+    marginBottom: 20,
+    paddingVertical: 8,
+    fontSize: 16,
+  },
+  btnFotoTracejado: {
+    borderStyle: 'dashed',
+    borderWidth: 1.5,
+    borderColor: '#4caf50',
+    borderRadius: 10,
+    padding: 15,
+    alignItems: 'center',
+    backgroundColor: '#f9fff9',
+    marginBottom: 15,
+  },
+  btnFotoTexto: { color: '#2e7d32', fontWeight: 'bold' },
+  previewImagem: {
+    width: '100%',
+    height: 300,
+    borderRadius: 10,
+    marginBottom: 15,
+    resizeMode: 'cover',
+  },
+  btnPublicar: {
+    backgroundColor: '#2e7d32',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  btnPublicarTexto: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+
+  cardItem: {
+    backgroundColor: '#fff',
+    marginHorizontal: 15,
+    marginBottom: 15,
+    borderRadius: 12,
+    overflow: 'hidden',
+    elevation: 2,
+  },
+  cardImg: { width: '100%', height: 250 },
+  cardContent: { padding: 15, paddingBottom: 30 },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  removerBtn: { color: '#d32f2f', fontSize: 12, fontWeight: 'bold' },
+  cardDescricao: { fontSize: 14, color: '#666', marginVertical: 8 },
+  cardUser: { fontSize: 12, color: '#999', marginTop: 10 },
+  linkVerde: { color: '#2e7d32', textDecorationLine: 'underline' },
+  empty: { textAlign: 'center', marginTop: 50, color: '#bbb' },
+
+  tabBarContainer: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    position: 'absolute',
+    bottom: 0,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    height: Platform.OS === 'ios' ? 110 : 90,
+    width: '100%',
+    maxWidth: 800,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderColor: '#eee',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 35,
+    elevation: 20,
+  },
+  tabItem: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  tabAtiva: { borderTopWidth: 3, borderTopColor: '#2e7d32' },
+  tabText: { color: '#999', fontSize: 12 },
+  tabTextAtivo: { color: '#2e7d32', fontWeight: 'bold', fontSize: 12 },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalConteudo: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+  },
+  modalTitulo: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1b5e20',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  perfilLabel: { fontSize: 12, color: '#777', fontWeight: 'bold' },
+  perfilDado: { fontSize: 16, color: '#333', marginTop: 2 },
+  btnFecharModal: {
+    backgroundColor: '#2e7d32',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  btnFecharTexto: { color: '#fff', fontWeight: 'bold' },
+});
